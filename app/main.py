@@ -1,8 +1,6 @@
-
 from contextlib import asynccontextmanager
-
 from fastapi import FastAPI, HTTPException
-
+from fastapi.openapi.utils import get_openapi
 from app.schemas import QueryRequest, QueryResponse
 from app.database.feedback_store import initialize_feedback_db
 from app.rag.graph import rag_graph
@@ -26,6 +24,54 @@ app = FastAPI(
 )
 
 app.include_router(router)
+
+
+def custom_openapi():
+    """Customize OpenAPI schema for Swagger file uploads."""
+
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes
+    )
+
+    # Use OpenAPI 3.0 binary format for Swagger compatibility.
+    openapi_schema["openapi"] = "3.0.3"
+
+    ingest_schema = (
+        openapi_schema
+        .get("components", {})
+        .get("schemas", {})
+        .get("Body_ingest_documents_ingest_post", {})
+    )
+
+    files_schema = (
+        ingest_schema
+        .get("properties", {})
+        .get("files", {})
+    )
+
+    # Represent uploaded files as binary file inputs.
+    if files_schema:
+        files_schema.clear()
+        files_schema.update({
+            "type": "array",
+            "items": {
+                "type": "string",
+                "format": "binary"
+            },
+            "title": "Files"
+        })
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
 
 
 @app.get("/")
