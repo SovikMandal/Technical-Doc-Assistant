@@ -226,18 +226,42 @@ Example response:
 }
 ```
 
+
 ### `POST /ingest`
 
-Loads and indexes the Markdown corpus.
+Ingest documents into the vector database.
 
-Example response:
+Supports:
+- Markdown (`.md`)
+- Text (`.txt`)
+- HTML (`.html`)
 
-``` json
+**Upload limits:**
+- Maximum file size: 5 MB per file.
+- Multiple files can be uploaded in one request.
+- Uploaded files are stored separately from the predefined documentation corpus.
+- Re-uploading a file with the same filename replaces its previous indexed chunks.
+
+**Example using curl:**
+
+```bash
+curl -X POST "http://127.0.0.1:8000/ingest" \
+  -F "files=@documentation.md"
+```
+
+**Example response:**
+
+```json
 {
-  "message": "Documents ingested successfully",
-  "total_chunks": 69
+  "message": "Uploaded documents indexed successfully",
+  "uploaded_files": 1,
+  "indexed_chunks": 3,
+  "total_chunks_in_database": 72
 }
 ```
+
+The chunk counts are illustrative.
+
 
 The count above reflects the current corpus and chunking configuration;
 it may change if the source documents or splitter settings change.
