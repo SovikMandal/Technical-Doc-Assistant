@@ -150,7 +150,7 @@ Runtime artifacts such as `venv/`, `.env`, `chroma_db/`, and
 ### 1. Clone the repository
 
 ``` bash
-git clone <YOUR_GITHUB_REPOSITORY_URL>
+git clone https://github.com/SovikMandal/Technical-Doc-Assistant.git
 cd Technical-Doc-Assistant
 ```
 
