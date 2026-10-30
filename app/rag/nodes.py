@@ -81,8 +81,9 @@ def retrieve_documents_node(state: dict) -> dict:
     }
 
 
+
 def grade_documents(state: dict) -> dict:
-    """Grade retrieved documents using local cosine similarity."""
+    """Grade retrieved document chunks using Gemini."""
 
     documents = state.get("documents", [])
 
@@ -90,35 +91,93 @@ def grade_documents(state: dict) -> dict:
         print("No documents retrieved.")
         return {"relevant_documents": []}
 
-    MIN_RELEVANCE_SCORE = 0.50
+    print("Grading documents with Gemini...")
+
+    formatted_documents = []
+
+    for index, document in enumerate(documents):
+        formatted_documents.append({
+            "index": index,
+            "source": document.get("metadata", {}).get("source", "unknown"),
+            "content": document.get("content", "")
+        })
+
+    prompt = f"""
+You are a strict document relevance evaluator for a
+FastAPI technical documentation assistant.
+
+Evaluate each document against the user's question.
+
+USER QUESTION:
+{state["question"]}
+
+RETRIEVED DOCUMENTS:
+{json.dumps(formatted_documents, indent=2)}
+
+Instructions:
+1. Mark a document relevant only if its content contains
+   information that helps answer the question.
+2. Do not mark a document relevant merely because it
+   mentions FastAPI.
+3. Do not use outside knowledge.
+4. Evaluate every document independently.
+
+Return ONLY valid JSON in this exact format:
+{{
+    "grades": [
+        {{
+            "index": 0,
+            "relevant": true,
+            "reason": "Brief explanation"
+        }}
+    ]
+}}
+
+Include one grade for every document.
+"""
+
+    start_time = time.perf_counter()
+
+    response = generate_text(prompt)
+    result = extract_json(response)
+
+    grades = result.get("grades")
+
+    if not isinstance(grades, list):
+        raise ValueError("Gemini returned an invalid grading response.")
 
     relevant_documents = []
+    processed_indices = set()
 
-    print("Grading documents locally...")
-
-    for document in documents:
-        distance = document.get("distance")
-
-        if distance is None:
+    for grade in grades:
+        if not isinstance(grade, dict):
             continue
 
-        # ChromaDB cosine distance = 1 - cosine similarity
-        similarity = 1 - distance
+        index = grade.get("index")
+        relevant = grade.get("relevant")
 
-        source = document["metadata"]["source"]
+        if (
+            isinstance(index, int)
+            and not isinstance(index, bool)
+            and 0 <= index < len(documents)
+            and index not in processed_indices
+            and isinstance(relevant, bool)
+        ):
+            processed_indices.add(index)
 
-        print(
-            f"Source: {source} | "
-            f"Similarity: {similarity:.4f}"
-        )
-
-        if similarity >= MIN_RELEVANCE_SCORE:
-            document["relevance_score"] = similarity
-            relevant_documents.append(document)
+            if relevant:
+                document = documents[index].copy()
+                document["grading_reason"] = grade.get("reason", "")
+                relevant_documents.append(document)
 
     print(
-        f"Local grading completed. "
-        f"Relevant documents: {len(relevant_documents)}/{len(documents)}"
+        f"LLM grading completed in "
+        f"{time.perf_counter() - start_time:.2f} seconds."
+    )
+
+    print(
+        f"Relevant documents: "
+        f"{len(relevant_documents)}/{len(documents)}"
     )
 
     return {
