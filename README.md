@@ -62,7 +62,7 @@ flowchart TD
 
 - **FastAPI:** Provides HTTP endpoints for document ingestion, querying, document listing, and feedback management.
 - **LangGraph:** Defines the stateful RAG workflow and conditional routing between retrieval, relevance grading, query rewriting, answer generation, and fallback.
-- **Document loader and chunker:** Load Markdown, text, and HTML documents and split them into manageable overlapping chunks.
+- **Document loader and chunker:** Load the Markdown documentation corpus and split it into manageable overlapping chunks.
 - **Sentence Transformers:** Generate document embeddings locally using `all-MiniLM-L6-v2`.
 - **ChromaDB:** Persist document embeddings, text, and source metadata; retrieve candidate chunks using vector similarity search.
 - **Relevance grader:** Uses Gemini to evaluate each retrieved chunk against the user's question and filters out irrelevant chunks.
