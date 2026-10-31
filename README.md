@@ -468,5 +468,5 @@ service.
 
 ## License
 
-Add the license required by your project or assignment before publishing
-the repository.
+This project is licensed under the MIT License.
+See the [LICENSE](LICENSE) file for details.
