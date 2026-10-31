@@ -18,7 +18,7 @@ on a language model's parametric knowledge.
 -   Split source documents into overlapping text chunks.
 -   Generate local sentence-transformer embeddings.
 -   Store and retrieve vectors using persistent ChromaDB.
--   Grade retrieved chunks using cosine similarity.
+-   Grade each retrieved chunk using Gemini to determine its relevance to the user's question.
 -   Rewrite the search query and retry retrieval when no chunks pass the
     relevance threshold.
 -   Generate an answer with Gemini using the retrieved context.
@@ -31,14 +31,14 @@ on a language model's parametric knowledge.
 
 ### Query workflow
 
-``` mermaid
+```mermaid
 flowchart TD
     A[User question] --> B[FastAPI POST /query]
     B --> C[LangGraph: Analyze query]
     C --> D{Query type}
     D -->|General| E[Direct greeting response]
     D -->|Technical| F[Retrieve top-k chunks from ChromaDB]
-    F --> G[Grade chunks using cosine similarity]
+    F --> G[Grade each chunk using Gemini]
     G --> H{Any relevant chunks?}
     H -->|Yes| I[Generate grounded answer with Gemini]
     I --> J[Return answer and source filenames]
@@ -60,20 +60,14 @@ flowchart TD
 
 ### Component responsibilities
 
--   **FastAPI:** Provides HTTP endpoints and validates request/response
-    schemas.
--   **LangGraph:** Defines the stateful workflow and conditional
-    routing.
--   **Document loader and chunker:** Load Markdown files and split them
-    into manageable overlapping chunks.
--   **Sentence Transformers:** Generate embeddings locally.
--   **ChromaDB:** Persist embeddings, document text, and source
-    metadata; perform similarity retrieval.
--   **Relevance grader:** Converts ChromaDB cosine distance into
-    similarity and filters chunks using a threshold.
--   **Gemini:** Rewrites queries when retrieval fails and generates
-    answers from retrieved context.
--   **SQLite:** Persists feedback records.
+- **FastAPI:** Provides HTTP endpoints for document ingestion, querying, document listing, and feedback management.
+- **LangGraph:** Defines the stateful RAG workflow and conditional routing between retrieval, relevance grading, query rewriting, answer generation, and fallback.
+- **Document loader and chunker:** Load Markdown, text, and HTML documents and split them into manageable overlapping chunks.
+- **Sentence Transformers:** Generate document embeddings locally using `all-MiniLM-L6-v2`.
+- **ChromaDB:** Persist document embeddings, text, and source metadata; retrieve candidate chunks using vector similarity search.
+- **Relevance grader:** Uses Gemini to evaluate each retrieved chunk against the user's question and filters out irrelevant chunks.
+- **Gemini:** Performs relevance grading, query rewriting, and grounded answer generation.
+- **SQLite:** Persists user feedback records.
 
 ## 3. Technology Stack
 
@@ -368,20 +362,13 @@ questions and adjusted based on retrieval quality.
 
 ### Retrieval and relevance grading
 
-The retriever requests the top 4 chunks (`TOP_K = 4`) from ChromaDB.
-ChromaDB is configured to use cosine distance. The grader converts
-distance to similarity using:
+The retriever requests the top 4 chunks (`TOP_K = 4`) from ChromaDB using vector similarity search. This initial retrieval identifies candidate documents but does not determine their final relevance.
 
-`similarity = 1 - cosine_distance`
+Gemini receives the original user question and all retrieved chunks, including their source filenames and content. It evaluates each chunk independently and returns structured JSON containing the chunk index, a boolean relevance decision, and a short explanation.
 
-Chunks with similarity at least `0.50` are currently treated as
-relevant. This is a simple, inexpensive heuristic because it reuses the
-vector search result instead of making another LLM grading call.
+The application validates the grading response and retains only the chunks marked as relevant. If no relevant chunks are found, the workflow proceeds to query rewriting and retries retrieval, subject to the configured retry limit.
 
-The trade-off is that a fixed threshold is not universally reliable. It
-may reject useful content or accept weakly related chunks. The threshold
-should be calibrated using labeled query-document examples and retrieval
-metrics.
+**Trade-offs:** LLM-based relevance grading provides context-aware decisions compared with a fixed similarity threshold. However, it introduces additional Gemini API usage, response latency, and the possibility of invalid model responses. The grading accuracy has not yet been benchmarked against a human-labelled relevance dataset.
 
 ### Self-correction and retry limit
 
