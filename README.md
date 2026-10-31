@@ -242,42 +242,29 @@ Example response:
 
 ### `POST /ingest`
 
-Ingest documents into the vector database.
-
-Supports:
-- Markdown (`.md`)
-- Text (`.txt`)
-- HTML (`.html`)
-
-**Upload limits:**
-- Maximum file size: 5 MB per file.
-- Multiple files can be uploaded in one request.
-- Uploaded files are stored separately from the predefined documentation corpus.
-- Re-uploading a file with the same filename replaces its previous indexed chunks.
+Ingests the predefined local documentation corpus
+(`documents/fastapi/`) into the vector database. It loads the Markdown
+corpus, chunks the documents, creates embeddings, and upserts them into
+the persistent ChromaDB collection. This endpoint takes no request body.
 
 **Example using curl:**
 
 ```bash
-curl -X POST "http://127.0.0.1:8000/ingest" \
-  -F "files=@documentation.md"
+curl -X POST "http://127.0.0.1:8000/ingest"
 ```
 
 **Example response:**
 
 ```json
 {
-  "message": "Uploaded documents indexed successfully",
-  "uploaded_files": 1,
-  "indexed_chunks": 3,
-  "total_chunks_in_database": 72
+  "message": "Documents ingested successfully",
+  "total_chunks": 72
 }
 ```
 
-The chunk counts are illustrative.
-
-
-The count above reflects the current corpus and chunking configuration;
-it may change if the source documents or splitter settings change.
+The chunk count is illustrative; it reflects the current corpus and
+chunking configuration and may change if the source documents or
+splitter settings change.
 
 ### `GET /documents`
 

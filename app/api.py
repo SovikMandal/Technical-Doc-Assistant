@@ -1,9 +1,5 @@
-from pathlib import Path
-from fastapi import APIRouter, HTTPException, UploadFile, File
-from app.ingestion.indexer import (
-    index_documents,
-    index_uploaded_documents
-)
+from fastapi import APIRouter, HTTPException
+from app.ingestion.indexer import index_documents
 from app.database.vector_store import collection
 from app.database.feedback_store import (
     save_feedback,
@@ -14,86 +10,17 @@ from app.schemas import FeedbackRequest
 
 router = APIRouter()
 
-MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
-ALLOWED_EXTENSIONS = {".md", ".txt", ".html"}
-
 
 @router.post("/ingest")
-async def ingest_documents(
-    files: list[UploadFile] = File(default=[])
-):
-    # Preserve existing behavior when no files are uploaded.
-    if not files:
-        index_documents()
+def ingest_documents():
+    """Ingest the predefined local documentation corpus."""
 
-        return {
-            "message": "Existing documents ingested successfully",
-            "total_chunks": collection.count()
-        }
+    index_documents()
 
-    uploaded_files = []
-    seen_filenames = set()
-
-    for file in files:
-        original_filename = file.filename or ""
-        filename = Path(
-            original_filename.replace("\\", "/")
-        ).name
-
-        if not filename:
-            raise HTTPException(
-                status_code=400,
-                detail="Every uploaded file must have a filename."
-            )
-
-        extension = Path(filename).suffix.lower()
-
-        if extension not in ALLOWED_EXTENSIONS:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Unsupported file type: {extension}. "
-                    "Allowed formats: .md, .txt, .html"
-                )
-            )
-
-        if filename.lower() in seen_filenames:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Duplicate filename: {filename}"
-            )
-
-        seen_filenames.add(filename.lower())
-
-        content = await file.read(MAX_FILE_SIZE + 1)
-
-        if not content:
-            raise HTTPException(
-                status_code=400,
-                detail=f"{filename} is empty."
-            )
-
-        if len(content) > MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=413,
-                detail=f"{filename} exceeds the 5 MB file limit."
-            )
-
-        uploaded_files.append((filename, content))
-
-    try:
-        result = index_uploaded_documents(uploaded_files)
-
-        return {
-            "message": "Uploaded documents indexed successfully",
-            **result
-        }
-
-    except ValueError as error:
-        raise HTTPException(
-            status_code=400,
-            detail=str(error)
-        )
+    return {
+        "message": "Documents ingested successfully",
+        "total_chunks": collection.count()
+    }
 
 
 @router.get("/documents")
