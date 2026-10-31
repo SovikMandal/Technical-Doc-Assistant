@@ -206,6 +206,25 @@ The embedding model is downloaded on first use. The generated
 `chroma_db/` directory is local runtime data and can be rebuilt by
 running ingestion again.
 
+### Troubleshooting a fresh clone
+
+A new clone does not include `.env`, `venv/`, `chroma_db/`, or
+`feedback.db`, because they are listed in `.gitignore`. Two of these
+cause the most common first-run failures:
+
+- **`GEMINI_API_KEY is missing from .env`:** The `.env` file is not
+  committed. Copy `.env.example` to `.env` and add your own Gemini API
+  key before starting the application (see step 4 of Setup).
+- **`pip install -r requirements.txt` fails to parse the file:**
+  `requirements.txt` must be UTF-8. If it is regenerated with
+  `pip freeze > requirements.txt` from PowerShell, PowerShell writes the
+  file as UTF-16, which pip cannot read. Regenerate it with an explicit
+  UTF-8 encoding instead:
+
+  ```powershell
+  python -m pip freeze | Out-File -Encoding utf8 requirements.txt
+  ```
+
 ## 7. API Endpoints and Examples
 
 ### `GET /`

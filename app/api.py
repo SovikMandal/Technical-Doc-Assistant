@@ -20,7 +20,7 @@ ALLOWED_EXTENSIONS = {".md", ".txt", ".html"}
 
 @router.post("/ingest")
 async def ingest_documents(
-    files: list[UploadFile] | None = File(default=None)
+    files: list[UploadFile] = File(default=[])
 ):
     # Preserve existing behavior when no files are uploaded.
     if not files:

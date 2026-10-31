@@ -39,7 +39,6 @@ def custom_openapi():
         routes=app.routes
     )
 
-    # Use OpenAPI 3.0 binary format for Swagger compatibility.
     openapi_schema["openapi"] = "3.0.3"
 
     ingest_schema = (
@@ -55,7 +54,6 @@ def custom_openapi():
         .get("files", {})
     )
 
-    # Represent uploaded files as binary file inputs.
     if files_schema:
         files_schema.clear()
         files_schema.update({
@@ -66,6 +64,11 @@ def custom_openapi():
             },
             "title": "Files"
         })
+
+    if ingest_schema:
+        required_fields = ingest_schema.get("required", [])
+        if "files" in required_fields:
+            required_fields.remove("files")
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema
