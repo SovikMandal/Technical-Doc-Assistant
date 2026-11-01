@@ -185,9 +185,6 @@ GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-3.5-flash-lite
 ```
 
-Never commit `.env` or expose your API key. The `.env.example` file
-documents the required variable names without containing secrets.
-
 ## 6. Run the Application
 
 Finish the Setup Instructions above first. Then follow these steps.
