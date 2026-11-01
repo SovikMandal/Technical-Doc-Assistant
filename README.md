@@ -15,6 +15,7 @@ on a language model's parametric knowledge.
 ### Main capabilities
 
 -   Load a local corpus of Markdown documentation.
+-   Ingest additional documents from file uploads or URLs.
 -   Split source documents into overlapping text chunks.
 -   Generate local sentence-transformer embeddings.
 -   Store and retrieve vectors using persistent ChromaDB.
@@ -53,6 +54,8 @@ flowchart TD
 ``` mermaid
 flowchart TD
     A[FastAPI Markdown corpus] --> B[Document loader]
+    U[Uploaded files / URLs] --> V[Validate, fetch, HTML to text]
+    V --> C
     B --> C[RecursiveCharacterTextSplitter]
     C --> D[Sentence Transformer embeddings]
     D --> E[Persistent ChromaDB collection]
@@ -94,7 +97,8 @@ Technical-Doc-Assistant/
 │   ├── ingestion/
 │   │   ├── chunker.py
 │   │   ├── indexer.py
-│   │   └── loader.py
+│   │   ├── loader.py
+│   │   └── sources.py
 │   ├── rag/
 │   │   ├── generator.py
 │   │   ├── graph.py
@@ -103,6 +107,7 @@ Technical-Doc-Assistant/
 │   │   └── test_graph.py
 │   ├── tests/
 │   │   ├── test_api.py
+│   │   ├── test_ingest.py
 │   │   └── test_llm.py
 │   ├── api.py
 │   ├── config.py
@@ -185,45 +190,90 @@ documents the required variable names without containing secrets.
 
 ## 6. Run the Application
 
-From the repository root, with the virtual environment activated:
+Finish the Setup Instructions above first. Then follow these steps.
+
+### Step 1: Open a terminal in the project folder
+
+``` bash
+cd Technical-Doc-Assistant
+```
+
+Always run the app from this folder. The app looks for `documents/`
+and `chroma_db/` relative to it.
+
+### Step 2: Activate the virtual environment
+
+**Windows PowerShell**
+
+``` powershell
+.\venv\Scripts\Activate.ps1
+```
+
+**macOS / Linux**
+
+``` bash
+source venv/bin/activate
+```
+
+You should see `(venv)` at the start of your terminal prompt.
+
+### Step 3: Start the server
 
 ``` bash
 uvicorn app.main:app --reload
 ```
 
-The local API will be available at:
+Wait until you see `Application startup complete`. Keep this terminal
+open while you use the app.
 
--   API base URL: `http://127.0.0.1:8000`
--   Interactive Swagger UI: `http://127.0.0.1:8000/docs`
+### Step 4: Open the API in your browser
 
-### Index the document corpus
+Go to <http://127.0.0.1:8000/docs>. This page (Swagger UI) lets you try
+every endpoint without writing any code.
 
-After starting the application, call `POST /ingest` once. This loads the
-Markdown corpus, chunks the documents, creates embeddings, and stores
-them in the persistent ChromaDB collection.
+### Step 5: Load the documents (first time only)
 
-The embedding model is downloaded on first use. The generated
-`chroma_db/` directory is local runtime data and can be rebuilt by
-running ingestion again.
+In Swagger UI, open `POST /ingest`, click **Try it out**, then
+**Execute**. Leave all fields empty to load the built-in FastAPI
+documents.
 
-### Troubleshooting a fresh clone
+Or use curl from a second terminal:
 
-A new clone does not include `.env`, `venv/`, `chroma_db/`, or
-`feedback.db`, because they are listed in `.gitignore`. Two of these
-cause the most common first-run failures:
+``` bash
+curl -X POST "http://127.0.0.1:8000/ingest"
+```
 
-- **`GEMINI_API_KEY is missing from .env`:** The `.env` file is not
-  committed. Copy `.env.example` to `.env` and add your own Gemini API
-  key before starting the application (see step 4 of Setup).
-- **`pip install -r requirements.txt` fails to parse the file:**
-  `requirements.txt` must be UTF-8. If it is regenerated with
-  `pip freeze > requirements.txt` from PowerShell, PowerShell writes the
-  file as UTF-16, which pip cannot read. Regenerate it with an explicit
-  UTF-8 encoding instead:
+The first run downloads the embedding model, so it can take a minute.
+You only need to do this once. The index is saved in `chroma_db/` and
+is reused the next time you start the server.
 
-  ```powershell
-  python -m pip freeze | Out-File -Encoding utf8 requirements.txt
-  ```
+### Step 6: Ask a question
+
+In Swagger UI, open `POST /query`, click **Try it out**, enter a
+question, and click **Execute**:
+
+``` json
+{
+  "question": "How do I define query parameters in FastAPI?"
+}
+```
+
+The response contains the answer and the source files it came from.
+
+### Stop the server
+
+Press `Ctrl + C` in the terminal where the server is running.
+
+### Common problems
+
+| Problem | Fix |
+|---|---|
+| `GEMINI_API_KEY is missing from .env` | Copy `.env.example` to `.env` and add your Gemini API key (Setup step 4). |
+| `uvicorn` is not recognized | The virtual environment is not active. Repeat Step 2. |
+| `Activate.ps1 cannot be loaded because running scripts is disabled` | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once in PowerShell, then repeat Step 2. |
+| `/query` always says it could not find information | The documents are not loaded yet. Do Step 5. |
+| `pip install -r requirements.txt` cannot read the file | The file must be UTF-8. If you regenerate it in PowerShell, use `python -m pip freeze \| Out-File -Encoding utf8 requirements.txt`. |
+| You want to rebuild the index from scratch | Stop the server, delete the `chroma_db/` folder, start the server again, and repeat Step 5. |
 
 ## 7. API Endpoints and Examples
 
@@ -242,15 +292,39 @@ Example response:
 
 ### `POST /ingest`
 
-Ingests the predefined local documentation corpus
-(`documents/fastapi/`) into the vector database. It loads the Markdown
-corpus, chunks the documents, creates embeddings, and upserts them into
-the persistent ChromaDB collection. This endpoint takes no request body.
+Ingests new documents from file uploads and/or URLs, sent as
+`multipart/form-data`. Each document is chunked, embedded, and stored in
+the persistent ChromaDB collection.
 
-**Example using curl:**
+| Form field | Type | Description |
+|---|---|---|
+| `files` | file, repeatable | `.md`, `.markdown`, or `.txt` files, UTF-8, max 5 MB each |
+| `urls` | string, repeatable | Public `http`/`https` URLs of HTML pages or text/Markdown files, max 5 MB each. One field may also hold several URLs separated by commas or newlines |
+
+Behavior:
+
+- If the request contains no files and no URLs, the predefined local
+  corpus (`documents/fastapi/`) is ingested.
+- A request may contain up to 10 files and URLs combined.
+- Uploaded files are cited by filename and URLs by the submitted URL.
+  Re-ingesting the same filename or URL replaces its previous chunks.
+- HTML pages are converted to plain text; scripts and styles are removed.
+- All items are validated before anything is indexed. If any item fails,
+  the request is rejected and the index is unchanged.
+- URLs that resolve to private, loopback, link-local, or other
+  non-public addresses are rejected, including after redirects.
+
+**Examples using curl:**
 
 ```bash
+# Ingest the local corpus
 curl -X POST "http://127.0.0.1:8000/ingest"
+
+# Upload files and add a URL
+curl -X POST "http://127.0.0.1:8000/ingest" \
+  -F "files=@notes.md" \
+  -F "files=@guide.txt" \
+  -F "urls=https://fastapi.tiangolo.com/tutorial/cors/"
 ```
 
 **Example response:**
@@ -258,13 +332,25 @@ curl -X POST "http://127.0.0.1:8000/ingest"
 ```json
 {
   "message": "Documents ingested successfully",
-  "total_chunks": 72
+  "ingested": [
+    {"source": "notes.md", "source_type": "file", "chunks": 1},
+    {
+      "source": "https://fastapi.tiangolo.com/tutorial/cors/",
+      "source_type": "url",
+      "chunks": 15
+    }
+  ],
+  "total_chunks": 85
 }
 ```
 
-The chunk count is illustrative; it reflects the current corpus and
-chunking configuration and may change if the source documents or
-splitter settings change.
+`source_type` is `corpus`, `file`, or `url`. Chunk counts are
+illustrative.
+
+**Errors:** `400` empty or non-UTF-8 file, `413` file or page too large,
+`415` unsupported file or content type, `422` invalid, private, or
+duplicate URL, or too many items, `502` URL returned an error, `504` URL
+fetch timed out.
 
 ### `GET /documents`
 
@@ -425,7 +511,7 @@ Run the full automated test suite from the repository root:
 python -m pytest -v
 ```
 
-The current suite contains 17 tests covering:
+The current suite contains 46 tests covering:
 
 -   Successful LangGraph retrieval and generation routing.
 -   Query rewriting and retry behavior.
@@ -434,6 +520,10 @@ The current suite contains 17 tests covering:
 -   API root, query, and request validation behavior.
 -   Gemini API error-to-HTTP-status mapping.
 -   Successful and empty Gemini responses.
+-   Document ingestion from file uploads and URLs: file type, size, and
+    encoding checks, HTML-to-text conversion, URL errors and timeouts,
+    blocking of private addresses (including after redirects), and
+    replacement of a source's chunks on re-ingestion.
 
 Most workflow and API tests use mocks. They validate application logic
 without requiring live Gemini requests. They do not replace end-to-end
