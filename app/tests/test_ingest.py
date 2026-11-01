@@ -50,10 +50,6 @@ def mock_http(handler):
     return patch("app.ingestion.sources.httpx.Client", side_effect=factory)
 
 
-# ---------------------------------------------------------------------------
-# File uploads
-# ---------------------------------------------------------------------------
-
 def test_ingest_without_input_uses_local_corpus():
     with (
         patch("app.api.index_documents", return_value={"body.md": 3}) as corpus,
@@ -162,10 +158,6 @@ def test_too_many_items_is_rejected(mock_index):
     assert response.status_code == 422
     mock_index.assert_not_called()
 
-
-# ---------------------------------------------------------------------------
-# URLs
-# ---------------------------------------------------------------------------
 
 def test_ingest_html_url(mock_index, public_dns):
     html = (

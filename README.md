@@ -191,33 +191,7 @@ documents the required variable names without containing secrets.
 ## 6. Run the Application
 
 Finish the Setup Instructions above first. Then follow these steps.
-
-### Step 1: Open a terminal in the project folder
-
-``` bash
-cd Technical-Doc-Assistant
-```
-
-Always run the app from this folder. The app looks for `documents/`
-and `chroma_db/` relative to it.
-
-### Step 2: Activate the virtual environment
-
-**Windows PowerShell**
-
-``` powershell
-.\venv\Scripts\Activate.ps1
-```
-
-**macOS / Linux**
-
-``` bash
-source venv/bin/activate
-```
-
-You should see `(venv)` at the start of your terminal prompt.
-
-### Step 3: Start the server
+### Step 1: Start the server
 
 ``` bash
 uvicorn app.main:app --reload

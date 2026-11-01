@@ -26,10 +26,6 @@ class IngestionError(Exception):
         self.status_code = status_code
 
 
-# ---------------------------------------------------------------------------
-# Uploaded files
-# ---------------------------------------------------------------------------
-
 def _safe_filename(filename: str | None) -> str:
     """Strip any directory parts a client may send in the filename."""
 
@@ -91,10 +87,6 @@ def load_uploaded_file(filename: str | None, file: BinaryIO) -> Document:
         },
     )
 
-
-# ---------------------------------------------------------------------------
-# URLs
-# ---------------------------------------------------------------------------
 
 class _HTMLTextExtractor(HTMLParser):
     """Convert HTML into plain text, keeping paragraph breaks."""
